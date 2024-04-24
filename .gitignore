@@ -1,11 +1,14 @@
-*.fasta
-*.fa
+# *.fasta
+# *.fa
 *.fai
 # test input
 *.log
 
+.idea/*
+
 # stuff
 test_results_*
+test_output/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
