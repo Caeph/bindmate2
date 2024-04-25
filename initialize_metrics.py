@@ -20,7 +20,7 @@ def create_metric_instance(no_matched_models, metric_name, background_info, addi
     if "model" not in additional_info:
         probability_model = kcm.StubMetricModel(no_matched_models + 1,
                                                 unmatched_allowed_distributions=["uniform",
-                                                                                 "reverse-exponential"
+                                                                               #   "reverse-exponential"
                                                                                  ],
                                                 matched_allowed_distributions=["exponential",
                                                                                "gaussian-mixture"
