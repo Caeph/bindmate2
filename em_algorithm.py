@@ -6,6 +6,7 @@ import tensorflow as tf
 from argmax_calculation import NumericalOptimizer, WeightedNumericalOptimizer
 from itertools import product
 
+data_distr_sample_size = 4
 
 class BasicModelEnsemble:
     def __init__(self, metric_models, observed_values, n_m, n_z,
@@ -134,7 +135,10 @@ class WeightedModelEnsemble(BasicModelEnsemble):
             all_dists = [metric_proba_model.get_allowed_distributions(z) for z in range(self.n_z)]
 
             x = []
-            for dists in product(*all_dists):
+            distr = list(product(*all_dists))
+            sampled_data = np.random.choice(np.arange(len(distr)), size=data_distr_sample_size)
+            sampled_data = [distr[i] for i in sampled_data]
+            for dists in sampled_data:
                 distributions_to_use = {z: d for z, d in enumerate(dists)}
                 x.append(distributions_to_use)
             all_dists_dicts.append(x)
