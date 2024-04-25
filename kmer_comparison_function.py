@@ -80,7 +80,7 @@ class PairContent(KmerMetric):
         return res
 
     def compare_kmers(self, combinations):
-        full_difference = tf.zeros((50,50), dtype=tf.float64)
+        full_difference = tf.zeros((len(self.pairs),len(self.pairs)), dtype=tf.float64)
         for i in range(self.pairs.shape[1]):
             a = self.pairs[:, i]
             b = self.pairs[:, i]

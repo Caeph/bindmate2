@@ -2,8 +2,8 @@ from main_object_holder import PairingBasedSimilarityCalculator
 
 
 def main():
-    input_file = "test_data/small_unbalanced_test_dataset_randombg.fasta"
-    # input_file = "test_data/biodata_CTCF_TP53_l:300_n:10:10.fasta"
+    # input_file = "test_data/small_unbalanced_test_dataset_randombg.fasta"
+    input_file = "test_data/biodata_CTCF_TP53_l:300_n:10:10.fasta"
     calculator = PairingBasedSimilarityCalculator(
         k=31,
         metrics=["gc", "pair"],
