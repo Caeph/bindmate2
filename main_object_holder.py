@@ -166,50 +166,23 @@ class PairingBasedSimilarityCalculator:
         return tf.squeeze(chosen)
 
     def __optimize(self, pairwise_ranks, full_metrics):
-        if self.threads == 1:
-            all_trained_models = []
-            for run_i in range(self.bootstrap_runs):
-                trained_models = inner_optimization_run((pairwise_ranks,
-                                                         full_metrics,
-                                                         f"{run_i}",
-                                                         self.data_bootstrap_no,
-                                                         self.feature_bootstrap_no,
-                                                         self.matched_models,
-                                                         self.use_feature_weighting,
-                                                         self.max_em_iterations,
-                                                         self.em_params_reporter_filename,
-                                                         self.max_optimizer_iterations,
-                                                         self.learning_rate,
-                                                         self.decay_rate,
-                                                         self.report_step
-                                                         ))
-                all_trained_models.append(trained_models)
-        else:
-            with Pool(self.threads) as pool:
-                try:
-                    all_trained_models = pool.map(inner_optimization_run,
-                                                  [(pairwise_ranks,
-                                                    full_metrics,
-                                                    f"{run_i}",
-                                                    self.data_bootstrap_no,
-                                                    self.feature_bootstrap_no,
-                                                    self.matched_models,
-                                                    self.use_feature_weighting,
-                                                    self.max_em_iterations,
-                                                    self.em_params_reporter_filename,
-                                                    self.max_optimizer_iterations,
-                                                    self.learning_rate,
-                                                    self.decay_rate,
-                                                    self.report_step
-                                                    ) for run_i in range(
-                                                      self.bootstrap_runs
-                                                  )])
-                    all_trained_models = list(all_trained_models)
-                finally:
-                    print("All models are trained.")
-                    pool.close()
-                    pool.join()
-
+        all_trained_models = []
+        for run_i in range(self.bootstrap_runs):
+            trained_models = inner_optimization_run((pairwise_ranks,
+                                                     full_metrics,
+                                                     f"{run_i}",
+                                                     self.data_bootstrap_no,
+                                                     self.feature_bootstrap_no,
+                                                     self.matched_models,
+                                                     self.use_feature_weighting,
+                                                     self.max_em_iterations,
+                                                     self.em_params_reporter_filename,
+                                                     self.max_optimizer_iterations,
+                                                     self.learning_rate,
+                                                     self.decay_rate,
+                                                     self.report_step
+                                                     ))
+            all_trained_models.append(trained_models)
         return all_trained_models
 
     def __combine_probabilities_from_bootstrap(self, all_trained_models, pairwise_ranks):
