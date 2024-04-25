@@ -16,7 +16,7 @@ class KmerMetric:
         # probability_functions and stuff for optimization
         self.probability_model = probability_model
 
-    def compare_kmers(self, i1, i2):
+    def compare_kmers(self, combinations):
         pass
 
     def initialize(self, unique_kmers):
@@ -39,10 +39,12 @@ class GCcontent(KmerMetric):
                          )
         self.gc = None
 
-    def compare_kmers(self, i1, i2):
-        a = tf.gather(self.gc, i1)
-        b = tf.gather(self.gc, i2)
-        return tf.abs(a - b)
+    def compare_kmers(self, combinations):
+        # TODO
+        hor, ver = tf.meshgrid(self.gc, self.gc, indexing='ij')
+        diff2d = tf.math.abs(hor - ver)
+        diff = tf.reshape(diff2d, [-1])
+        return diff
 
     def initialize(self, unique_kmers):
         unique_kmers_tensor = tf.constant(unique_kmers)
@@ -77,11 +79,18 @@ class PairContent(KmerMetric):
         res = count_pairs(seq_tensor)
         return res
 
-    def compare_kmers(self, i1, i2):
-        a = tf.gather(self.pairs, i1)
-        b = tf.gather(self.pairs, i2)
-        diff = a - b
-        return tf.reduce_mean(tf.cast(diff * diff, tf.float32))
+    def compare_kmers(self, combinations):
+        full_difference = tf.zeros((50,50), dtype=tf.float64)
+        for i in range(self.pairs.shape[1]):
+            a = self.pairs[:, i]
+            b = self.pairs[:, i]
+            a_rep, b_rep = tf.meshgrid(a, b, indexing='ij')
+            diff = tf.cast(a_rep - b_rep, tf.float64)
+            full_difference += diff * diff
+
+        diff = tf.reshape(full_difference, [-1])
+        return diff
+
 
     def initialize(self, unique_kmers):
         unique_kmers_tensor = tf.constant(unique_kmers)

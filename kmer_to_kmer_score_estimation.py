@@ -4,11 +4,13 @@ from em_algorithm import *
 
 
 def calculate_all_to_all_metric(kmer_combinations, metric):
-    def calculate(r):
-        i1, i2 = r[0], r[1]
-        return metric.compare_kmers(i1, i2)
+    # def calculate(r):
+    #     i1, i2 = r[0], r[1]
+    #     return metric.compare_kmers(i1, i2)
+    #
+    # metric_values = tf.map_fn(calculate, kmer_combinations, dtype=tf.float32)
 
-    metric_values = tf.map_fn(calculate, kmer_combinations, dtype=tf.float32)
+    metric_values = metric.compare_kmers(kmer_combinations)
     return metric_values
 
 

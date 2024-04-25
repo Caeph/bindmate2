@@ -1,4 +1,5 @@
 import sys
+import time
 
 import numpy as np
 import tensorflow as tf
@@ -303,6 +304,7 @@ class EMOptimizer:
         self.__init_report(prior_probas, theta_params)
 
         for em_i in range(self.max_step):
+            start = time.time()
             print(f"{self.identificator}:\tEM-ITERATION {em_i}")
             qs = self.__e_step(prior_probas, theta_params)
             new_prior_probas, new_theta_params, achieved_objective = self.__m_step(qs)
@@ -317,6 +319,7 @@ class EMOptimizer:
                 print(f"{self.identificator}:\tEM-CONVERGENCE in {em_i}")
                 break
             last_objective_value = achieved_objective
+            print(f"{self.identificator}:\tfinished EM-ITERATION {em_i} in {time.time() - start}")
 
         self.model_ensemble.finalize_training(prior_probas, theta_params)
         self.reporter_file.close()
