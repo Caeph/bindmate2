@@ -303,10 +303,10 @@ class PairingBasedSimilarityCalculator:
             unique_kmers, full_metrics)
         kmer_to_kmer_results = PairingResults(
             unique_kmers=unique_kmers,
-            kmer_combinations=selected_kmer_combinations,
-            matched_probas=selected_match_proba,
-            probas_0=selected_mismatch_proba,
-            probas_1=selected_total_match_proba,
+            kmer_combinations=selected_kmer_combinations.numpy(),
+            matched_probas=[x.numpy() for x in selected_match_proba],
+            probas_0=selected_mismatch_proba.numpy(),
+            probas_1=selected_total_match_proba.numpy(),
             mapped_kmers=kmers_mapped_to_sqs
         )
 

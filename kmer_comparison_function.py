@@ -91,7 +91,6 @@ class PairContent(KmerMetric):
         diff = tf.reshape(full_difference, [-1])
         return diff
 
-
     def initialize(self, unique_kmers):
         unique_kmers_tensor = tf.constant(unique_kmers)
         self.pairs = tf.map_fn(self.__characterize, unique_kmers_tensor, dtype=tf.int32)
