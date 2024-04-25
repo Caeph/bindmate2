@@ -6,7 +6,7 @@ import tensorflow as tf
 from argmax_calculation import NumericalOptimizer, WeightedNumericalOptimizer
 from itertools import product
 
-data_distr_sample_size = 4
+data_distr_sample_size = 32
 
 class BasicModelEnsemble:
     def __init__(self, metric_models, observed_values, n_m, n_z,
