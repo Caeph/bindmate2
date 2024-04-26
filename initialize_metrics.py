@@ -11,7 +11,7 @@ metric_factory = {
 
 # todo make access point
 # structure of additional_info: dict(model=instance of KmerMetricModel)
-default_no_of_models = 2
+default_no_of_models = 3
 
 
 def create_metric_instance(no_matched_models, metric_name, background_info, additional_info):
@@ -22,7 +22,7 @@ def create_metric_instance(no_matched_models, metric_name, background_info, addi
                                                 unmatched_allowed_distributions=["uniform",
                                                                                #   "reverse-exponential"
                                                                                  ],
-                                                matched_allowed_distributions=["exponential",
+                                                matched_allowed_distributions=[# "exponential",
                                                                                "gaussian-mixture"
                                                                                ],
                                                 distributions_info=dict(gmm_models_no=default_no_of_models))
