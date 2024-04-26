@@ -136,8 +136,11 @@ class WeightedModelEnsemble(BasicModelEnsemble):
 
             x = []
             distr = list(product(*all_dists))
-            sampled_data = np.random.choice(np.arange(len(distr)), size=data_distr_sample_size)
-            sampled_data = [distr[i] for i in sampled_data]
+            if len(distr) < data_distr_sample_size:
+                sampled_data = np.random.choice(np.arange(len(distr)), size=data_distr_sample_size)
+                sampled_data = [distr[i] for i in sampled_data]
+            else:
+                sampled_data = distr
             for dists in sampled_data:
                 distributions_to_use = {z: d for z, d in enumerate(dists)}
                 x.append(distributions_to_use)
