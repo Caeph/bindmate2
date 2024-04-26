@@ -136,7 +136,7 @@ class WeightedModelEnsemble(BasicModelEnsemble):
 
             x = []
             distr = list(product(*all_dists))
-            if len(distr) < data_distr_sample_size:
+            if len(distr) > data_distr_sample_size:
                 sampled_data = np.random.choice(np.arange(len(distr)), size=data_distr_sample_size)
                 sampled_data = [distr[i] for i in sampled_data]
             else:
