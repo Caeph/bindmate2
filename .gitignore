@@ -10,6 +10,10 @@
 test_results_*
 test_output/*
 
+# bigger files
+additional_knowledge
+background_data
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

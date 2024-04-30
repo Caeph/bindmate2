@@ -32,9 +32,9 @@ def load_fasta_input(filename, subset=None):
     return df
 
 
-def load_bed_input(filename, fasta_input_filename, subset=None):
-    ...
-    # TODO load bed input to dataframe
+# def load_bed_input(filename, fasta_input_filename, subset=None):
+#     ...
+#     # TODO would be nice: load bed input to dataframe
 
 
 def make_kmers(seq, k, offset):

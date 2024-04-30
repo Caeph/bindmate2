@@ -2,12 +2,14 @@ import numpy as np
 import tensorflow as tf
 from itertools import product
 from collections import Counter
+import pyProBound
+from background_normalizer import *
 
 
 class KmerMetric:
     def __init__(self,
                  name, annot, metric_type,
-                 probability_model
+                 probability_model, additional_info, unique_kmers
                  ):
         self.name = name
         self.annotation = annot
@@ -16,10 +18,17 @@ class KmerMetric:
         # probability_functions and stuff for optimization
         self.probability_model = probability_model
 
-    def compare_kmers(self, combinations):
-        pass
+        # background
+        if "background_info" in additional_info:
+            self.normalizer = Normalizer(additional_info["background_info"], additional_info['k'])
+        elif "background_object" in additional_info:
+            self.normalizer = additional_info["background_object"]
+        else:
+            self.normalizer = Normalizer(None, additional_info['k'])
+            # dummy object that does nothing
+        self.unique_kmers = unique_kmers
 
-    def initialize(self, unique_kmers):
+    def compare_kmers(self, combinations):
         pass
 
     def get_type(self):
@@ -31,37 +40,44 @@ class KmerMetric:
 
 # UNIFIED INITIALIZER: probabilitiy model, background_info, additional_info
 class GCcontent(KmerMetric):
-    def __init__(self, probability_model, background_info, additional_info):
+    def __init__(self, probability_model, additional_info, unique_kmers):
         super().__init__(name="gc",
                          metric_type="distance",
                          annot="absolute difference is GC content",
-                         probability_model=probability_model
+                         probability_model=probability_model,
+                         additional_info=additional_info,
+                         unique_kmers=unique_kmers
                          )
         self.gc = None
 
     def compare_kmers(self, combinations):
-        # TODO
-        hor, ver = tf.meshgrid(self.gc, self.gc, indexing='ij')
-        diff2d = tf.math.abs(hor - ver)
-        diff = tf.reshape(diff2d, [-1])
+        unique_kmers_tensor = tf.constant(self.unique_kmers)
+
+        def gc_content_diff(kmers_tensor):
+            chars_tensor = tf.strings.bytes_split(kmers_tensor)
+            # Calculate GC content
+            gc_content = tf.cast(
+                tf.math.reduce_sum(tf.where((chars_tensor == b'G') | (chars_tensor == b'C'), 1, 0), axis=1), tf.float32)
+
+            hor, ver = tf.meshgrid(gc_content, gc_content, indexing='ij')
+            diff2d = tf.math.abs(hor - ver)
+            diff1d = tf.reshape(diff2d, [-1])
+            return diff1d
+
+        diff = gc_content_diff(unique_kmers_tensor)
+
+        diff = self.normalizer.normalize(gc_content_diff, diff)
         return diff
-
-    def initialize(self, unique_kmers):
-        unique_kmers_tensor = tf.constant(unique_kmers)
-        chars_tensor = tf.strings.bytes_split(unique_kmers_tensor)
-
-        # Calculate GC content
-        gc_content = tf.cast(
-            tf.math.reduce_sum(tf.where((chars_tensor == b'G') | (chars_tensor == b'C'), 1, 0), axis=1), tf.float32)
-        self.gc = gc_content
 
 
 class PairContent(KmerMetric):
-    def __init__(self, probability_model, background_info, additional_info):
+    def __init__(self, probability_model, additional_info, unique_kmers):
         super().__init__(name="pair-gc",
                          metric_type="distance",
                          annot="absolute difference in nucleotide pair content",
-                         probability_model=probability_model
+                         probability_model=probability_model,
+                         additional_info=additional_info,
+                         unique_kmers=unique_kmers
                          )
         self.pairs = None
         self.info = ["".join(pair) for pair in product(list('ACGT'), list('ACGT'))]
@@ -80,17 +96,37 @@ class PairContent(KmerMetric):
         return res
 
     def compare_kmers(self, combinations):
-        full_difference = tf.zeros((len(self.pairs),len(self.pairs)), dtype=tf.float64)
-        for i in range(self.pairs.shape[1]):
-            a = self.pairs[:, i]
-            b = self.pairs[:, i]
-            a_rep, b_rep = tf.meshgrid(a, b, indexing='ij')
-            diff = tf.cast(a_rep - b_rep, tf.float64)
-            full_difference += diff * diff
+        kmers_tensor = tf.constant(self.unique_kmers)
 
-        diff = tf.reshape(full_difference, [-1])
-        return diff
+        def nucl_pair_diff(unique_kmers_tensor):
+            pairs = tf.map_fn(self.__characterize, unique_kmers_tensor, dtype=tf.int32)
+            full_difference = tf.zeros((len(pairs), len(pairs)), dtype=tf.float64)
+            for i in range(pairs.shape[1]):
+                a = pairs[:, i]
+                b = pairs[:, i]
+                a_rep, b_rep = tf.meshgrid(a, b, indexing='ij')
+                diff = tf.cast(a_rep - b_rep, tf.float64)
+                full_difference += diff * diff
+
+            diff = tf.reshape(full_difference, [-1])
+            return diff
+
+        mse = nucl_pair_diff(kmers_tensor)
+        mse = self.normalizer.normalize(nucl_pair_diff, mse)
+        return mse
+
+
+class ProBoundAffinity(KmerMetric):
+    def __init__(self, probability_model, additional_info):
+        super().__init__(name="probound",
+                         metric_type="distance",
+                         annot="difference in affinity to TF selection as modelled by ProBound",
+                         probability_model=probability_model,
+                         additional_info=additional_info
+                         )
+
+    def compare_kmers(self, combinations):
+        ...
 
     def initialize(self, unique_kmers):
-        unique_kmers_tensor = tf.constant(unique_kmers)
-        self.pairs = tf.map_fn(self.__characterize, unique_kmers_tensor, dtype=tf.int32)
+        ...

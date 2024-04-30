@@ -329,6 +329,6 @@ class EMOptimizer:
             print(f"{self.identificator}:\tfinished EM-ITERATION {em_i} in {time.time() - start}")
 
         self.model_ensemble.finalize_training(prior_probas, theta_params)
-        self.reporter_file.close()
-        # TODO do not close if stdout
+        if self.reporter_file != sys.stdout:
+            self.reporter_file.close()
         return self.model_ensemble

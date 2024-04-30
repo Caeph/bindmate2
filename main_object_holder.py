@@ -1,6 +1,6 @@
 import time
 
-from input_parsing import load_bed_input, load_fasta_input, read_unique_kmers
+from input_parsing import load_fasta_input, read_unique_kmers
 from initialize_metrics import initialize_functions
 from seq_to_seq_score_estimation import *
 from kmer_to_kmer_score_estimation import *
@@ -13,7 +13,7 @@ import pandas as pd
 from joblib import cpu_count
 import os
 
-default_data_bootstrap_no = int(1e3)  # TODO reasonable data bootstrap default
+default_data_bootstrap_no = int(1e3)
 
 
 class PairingResults:
@@ -33,7 +33,7 @@ class PairingResults:
         return self.mapped_kmers_df['input_sequence_index'].unique()
 
     def save(self, path):
-        # TODO write ranks, write all calculated probabilities
+        # TODO write ranks
         os.makedirs(path, exist_ok=True)
         self.available_combinations.to_csv(os.path.join(path, "available_combinations.csv.gz"),
                                            index=False)
@@ -45,6 +45,9 @@ class PairingResults:
         ):
             np.save(os.path.join(path, core_filename + ".npy"), array)
 
+        for i, partial_probas in enumerate(self.matched_probas):
+            np.save(os.path.join(path, f"model_z={i+1}_probabilities.npy"), partial_probas)
+
         np.savetxt(os.path.join(path, "unique_kmers.txt"), self.unique_kmers, fmt="%s")
 
     # @staticmethod
@@ -54,11 +57,7 @@ class PairingResults:
     #     probas_1 = np.load(os.path.join(path, "probas_1.npy"))
     #     probas_0 = np.load(os.path.join(path, "probas_0.npy"))
     #     mapped_kmers = pd.read_csv(os.path.join(path, "mapped_kmers_df.csv.gz"))
-    #     # TODO matched probas
     #     return PairingResults(unique_kmers, kmer_combinations, probas_1, probas_0, mapped_kmers)
-
-
-# TODO create another version that does not come to a single thread after optimization but after preselection
 
 
 class PairingBasedSimilarityCalculator:
@@ -68,7 +67,7 @@ class PairingBasedSimilarityCalculator:
                  matched_models,
                  preselection_part=0.5,
                  additional_info_on_metrics=None,
-                 background_info=None,
+                #  background_info=None,
                  data_bootstrap_no=None,
                  feature_bootstrap_no=None,
                  bootstrap_runs=1,
@@ -76,6 +75,7 @@ class PairingBasedSimilarityCalculator:
                  use_feature_weighting=True,
                  threads=2,
                  reporter_file_name=None,
+                 kmer_results_file_name=None,
                  max_iterations=10000,
                  learning_rate=0.01,
                  decay_rate=0.95,
@@ -90,7 +90,7 @@ class PairingBasedSimilarityCalculator:
         self.metrics = metrics
         self.additional_info_on_metrics = additional_info_on_metrics
         self.matched_models = matched_models
-        self.background_info = background_info
+      #   self.background_info = background_info
 
         self.preselection_part = preselection_part
 
@@ -107,6 +107,7 @@ class PairingBasedSimilarityCalculator:
         self.max_em_iterations = max_em_iterations
         self.use_feature_weighting = use_feature_weighting
         self.em_params_reporter_filename = reporter_file_name
+        self.kmer_results_file_name = kmer_results_file_name
         self.max_optimizer_iterations = max_iterations
         self.learning_rate = learning_rate
         self.decay_rate = decay_rate
@@ -123,13 +124,13 @@ class PairingBasedSimilarityCalculator:
         # TODO write recap of used params
         ...
 
-    def fit_predict_bed(self, bed_filename, source_fasta):
-        # read bed and prep input
-        # analyze
-        self.__write_descriptions([bed_filename, source_fasta])
-        sequence_df = load_bed_input(bed_filename, source_fasta)
-        similarities = self.__fit(sequence_df)
-        return similarities
+    # def fit_predict_bed(self, bed_filename, source_fasta):
+    #     # read bed and prep input
+    #     # analyze
+    #     self.__write_descriptions([bed_filename, source_fasta])
+    #     sequence_df = load_bed_input(bed_filename, source_fasta)
+    #     similarities = self.__fit(sequence_df)
+    #     return similarities
 
     def __get_observed_values(self, kmer_combinations, full_metrics):
         rank_results = []
@@ -148,7 +149,7 @@ class PairingBasedSimilarityCalculator:
         return pairwise_ranks
 
     def __preselect(self, full_probas_0, full_probas_1, match_probas, kmer_combinations):
-        # TODO more flexibility based on match_probas
+        # TODO would be nice: more flexibility based on match_probas
         part = self.preselection_part
 
         if part >= 1:
@@ -187,7 +188,6 @@ class PairingBasedSimilarityCalculator:
 
     def __combine_probabilities_from_bootstrap(self, all_trained_models, pairwise_ranks):
         # all trained model is a list of what the inner_optimization_run returns: trained_models, feature_indices
-        # todo implement, add more flexibility with the combining logic
         bootstrapped_mismatch = []
         bootstrapped_match = []
         for trained_model_ensemble, source_features in all_trained_models:
@@ -198,9 +198,17 @@ class PairingBasedSimilarityCalculator:
 
         if len(all_trained_models) == 1:
             mismatch_proba, match_probas = bootstrapped_mismatch[0], bootstrapped_match[0]
+
+            # write to file if indicated
+            if self.kmer_results_file_name is not None:
+                to_report = pd.DataFrame(pairwise_ranks.numpy(), columns=[f"rank_{i}" for i in range(pairwise_ranks.shape[1])])
+                to_report['mismatch_proba'] = mismatch_proba
+                for i, proba in enumerate(match_probas):
+                    to_report[f"proba_model_{i}"] = proba
+                to_report.to_csv(self.kmer_results_file_name)
+                print(f"Reporting results to {self.kmer_results_file_name}")
         else:
-            # TODO combine bootstrapped probabilities
-            # Todo store the bootstrapped singletons for future reference
+            # TODO combine bootstrapped probabilities and  store the bootstrapped singletons for future reference
             raise NotImplementedError("TODO combine probabilities from bootstrapping")
 
         total_match_proba = np.zeros_like(mismatch_proba)
@@ -219,7 +227,6 @@ class PairingBasedSimilarityCalculator:
         # get kmer similarity probabilities
         all_trained_models = self.__optimize(pairwise_ranks, full_metrics)
 
-        # TODO logic of probability mashups
         mismatch_proba, match_probas, total_match_proba = self.__combine_probabilities_from_bootstrap(
             all_trained_models, pairwise_ranks)
 
@@ -296,7 +303,7 @@ class PairingBasedSimilarityCalculator:
                                             no_matched_models=self.matched_models,
                                             unique_kmers=unique_kmers,
                                             metrics=self.metrics,
-                                            background_info=self.background_info,
+                                     #        background_info=self.background_info,
                                             additional_info_on_metrics=self.additional_info_on_metrics)
         # kmer to kmer scores
         selected_kmer_combinations, selected_match_proba, selected_mismatch_proba, selected_total_match_proba = self.__calculate_kmer_to_kmer_similarities(
