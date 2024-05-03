@@ -8,6 +8,7 @@ metric_factory = {
     "gc": kcf.GCcontent,
     "pair": kcf.PairContent,
     "probound": kcf.ProBoundAffinity,
+    "shape": kcf.ShapeDifference,
 }
 
 # todo make access point
@@ -58,7 +59,7 @@ def initialize_functions(k, no_matched_models, unique_kmers, metrics, # backgrou
             additional_info = additional_info_on_metrics[m]
 
         else:
-            additional_info = dict()  # TODO define and get info
+            additional_info = dict()
 
         additional_info["k"] = k
         full = create_metric_instance(no_matched_models, m, additional_info, unique_kmers)

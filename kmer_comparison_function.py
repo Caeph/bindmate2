@@ -1,9 +1,19 @@
+import os
+
 import numpy as np
 import tensorflow as tf
 from itertools import product
 from collections import Counter
 import pyProBound
+from tqdm import tqdm
+
+import rpy2.robjects as robjects
+
+robjects.r('library(BiocManager)')
+
 from background_normalizer import *
+
+script_dir = os.path.split(os.path.realpath(__file__))[0]
 
 
 class KmerMetric:
@@ -117,16 +127,118 @@ class PairContent(KmerMetric):
 
 
 class ProBoundAffinity(KmerMetric):
-    def __init__(self, probability_model, additional_info):
+    def __init__(self, probability_model, additional_info, unique_kmers):
         super().__init__(name="probound",
                          metric_type="distance",
                          annot="difference in affinity to TF selection as modelled by ProBound",
                          probability_model=probability_model,
-                         additional_info=additional_info
+                         additional_info=additional_info,
+                         unique_kmers=unique_kmers
                          )
+        # load stuff
+        taxa = additional_info["taxa"]
+        mc = pyProBound.MotifCentral()
+        if taxa is not None:
+            mc = mc.filter(taxa=[taxa])
+        mc = mc[mc["gene_symbols"].str.len() == 1]
+        models, names = mc['model_id'].values.astype(int), mc["gene_symbols"].str[0]
+
+        # if needed -- filter out
+        if "selected_motifs" in additional_info:
+            mask = names.isin(additional_info["selected_motifs"])
+            models, names = models[mask], names[mask]
+        self.models = models
+        self.names = names
 
     def compare_kmers(self, combinations):
-        ...
+        unique_kmers_probound = [str(x) for x in self.unique_kmers]
+        if self.normalizer.valid:
+            background_kmers_probound = [str(x) for x in self.normalizer.bg_sequences.numpy().astype(str)]
+        else:
+            background_kmers_probound = None
 
-    def initialize(self, unique_kmers):
-        ...
+        full_difference = tf.zeros((len(unique_kmers_probound), len(unique_kmers_probound)), dtype=tf.float64)
+        for model_id, name in tqdm(list(zip(self.models, self.names))):
+            model_file = os.path.join(script_dir, "additional_knowledge", "probound_models", f"{model_id}.json")
+            model = pyProBound.ProBoundModel(model_file, fitjson=True)
+            model.select_binding_mode(0)  # in the motif central models there is usually only one
+            affinities = np.array(model.score_affinity_sum(unique_kmers_probound))
+
+            if background_kmers_probound is not None:
+                background_affinities = model.score_affinity_sum(background_kmers_probound)
+                loc = np.mean(background_affinities)
+                scale = np.std(background_affinities)
+                # normalize
+                affinities = (affinities - loc) / scale
+
+            a_rep, b_rep = tf.meshgrid(affinities, affinities, indexing='ij')
+            diff = tf.cast(a_rep - b_rep, tf.float64)
+            full_difference += diff * diff
+
+        diff = tf.reshape(full_difference, [-1])
+        return diff
+
+
+class ShapeDifference(KmerMetric):
+    def __init__(self, probability_model, additional_info, unique_kmers):
+        super().__init__(name="shape",
+                         metric_type="distance",
+                         annot="MSE of chosen shape feature",
+                         probability_model=probability_model,
+                         additional_info=additional_info,
+                         unique_kmers=unique_kmers
+                         )
+        self.shape_parameter = additional_info["shape_feature"]
+        aggregating_functions = {
+            "mean": np.mean,
+            "max": np.max,
+            "min": np.min
+        }
+        if "shape_aggregator" not in additional_info:
+            self.shape_aggregator = aggregating_functions["mean"]
+        elif additional_info["shape_aggregator"] in aggregating_functions:
+            self.shape_aggregator = aggregating_functions[additional_info["shape_aggregator"]]
+        else:
+            self.shape_aggregator = additional_info["shape_aggregator"]
+
+    def compare_kmers(self, combinations):
+        robjects.r('library(DNAshapeR)')
+
+        def calculate_shape(kmers):
+            temp_fasta_name = "tmp.fasta"
+            with open(temp_fasta_name, mode='w') as temp_fasta:
+                # put stuff to tempfile
+                for i, item in enumerate(kmers):
+                    print(f">{i}\n{item}", file=temp_fasta)
+
+            # Call the getShape function
+            result = robjects.r('getShape')(temp_fasta_name)
+
+            def strip_nan(array):
+                good = np.where(~np.isnan(array[0, :]))[0]
+                return array[:, good]
+
+            pyresult = {name: np.array(val) for name, val in zip(result.names, list(result))}
+            shape_values = strip_nan(pyresult[self.shape_parameter])
+            os.remove(temp_fasta_name)
+            for name in pyresult.keys():
+                os.remove(temp_fasta_name + f".{name}")
+
+            # aggregate values on one kmer
+            shape_values = np.apply_along_axis(self.shape_aggregator, 1, shape_values)
+
+            return shape_values
+        shape_values = calculate_shape(self.unique_kmers)
+        if self.normalizer.valid:
+            bg_shape_values = calculate_shape(self.normalizer.bg_sequences.numpy())
+            loc = np.mean(bg_shape_values)
+            scale = np.std(bg_shape_values)
+            shape_values = (shape_values - loc) / scale
+
+        shape_values = tf.constant(shape_values)
+        hor, ver = tf.meshgrid(shape_values, shape_values, indexing='ij')
+        diff2d = tf.math.abs(hor - ver)
+        diff2d = diff2d * diff2d
+
+        diff1d = tf.reshape(diff2d, [-1])
+        return diff1d

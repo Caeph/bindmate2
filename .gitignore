@@ -9,6 +9,9 @@
 # stuff
 test_results_*
 test_output/*
+*.npy
+*.txt
+*.csv
 
 # bigger files
 additional_knowledge
